@@ -5,8 +5,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "build": "cd frontend && pnpm install && pnpm run build",
-    "dev:frontend": "cd frontend && pnpm run dev"
+    "build": "cd frontend && npm ci && npm run build",
+    "dev:frontend": "cd frontend && npm run dev"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
