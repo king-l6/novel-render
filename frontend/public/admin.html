@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员 - TXT 小说阅读器</title>
+  <style>
+    :root { --bg: #f5f0e8; --text: #2c2c2c; --text-muted: #666; --accent: #8b6914; --border: #ddd; --sidebar-bg: #ebe5dc; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Noto Serif SC", serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.7; }
+    .hidden { display: none !important; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem; }
+    .subtitle a { color: var(--accent); }
+    .btn-login { padding: 0.65rem 1rem; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; }
+    .btn-shelf { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 0.35rem 0.65rem; cursor: pointer; font-size: 0.85rem; }
+    .btn-shelf:hover { border-color: var(--accent); background: rgba(139, 105, 20, 0.08); }
+    .admin-wrap { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    .admin h1 { margin-bottom: 1rem; }
+    .admin-actions { margin-bottom: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+    .admin table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    .admin th, .admin td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .admin th { background: var(--sidebar-bg); font-size: 0.9rem; }
+    .admin .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
+    .admin .forbidden { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .admin .forbidden a { color: var(--accent); }
+    .user-books { margin-top: 1rem; }
+    .user-books table { margin-top: 0.5rem; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal-inner { background: var(--bg); padding: 1.5rem; border-radius: 12px; max-width: 360px; width: 90%; }
+    .modal-inner h3 { margin-bottom: 1rem; }
+    .modal-inner input { width: 100%; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
+    .modal-inner .actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="admin admin-wrap">
+    <div class="forbidden hidden" id="forbidden">
+      <p>仅管理员可访问此页面。</p>
+      <a href="/">返回首页</a>
+    </div>
+    <div id="adminPanel">
+      <h1>管理员</h1>
+      <p class="subtitle"><a href="/bookshelf">← 返回书架</a></p>
+      <div class="admin-actions">
+        <button type="button" class="btn-shelf" id="btnAddUser">添加用户</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>用户名</th><th>管理员</th><th>注册时间</th><th>操作</th></tr>
+        </thead>
+        <tbody id="userList"></tbody>
+      </table>
+      <div id="userBooksSection" class="hidden">
+        <h2>用户「<span id="selectedUserName"></span>」的书架</h2>
+        <div class="user-books">
+          <table>
+            <thead><tr><th>ID</th><th>书名</th><th>大小</th><th>添加时间</th><th>操作</th></tr></thead>
+            <tbody id="userBooksList"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="userModal">
+    <div class="modal-inner">
+      <h3 id="userModalTitle">添加用户</h3>
+      <input type="text" id="modalUsername" placeholder="用户名">
+      <input type="password" id="modalPassword" placeholder="密码">
+      <label><input type="checkbox" id="modalIsAdmin"> 管理员</label>
+      <div class="actions">
+        <button type="button" class="btn-shelf" id="modalCancel">取消</button>
+        <button type="button" class="btn-login" id="modalSubmit">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function api(path, opts = {}) {
+      const res = await fetch(path, { ...opts, credentials: 'include' });
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) {}
+      if (!res.ok) throw new Error(data?.error || res.statusText);
+      return data;
+    }
+
+    const forbidden = document.getElementById('forbidden');
+    const adminPanel = document.getElementById('adminPanel');
+    const userList = document.getElementById('userList');
+    const userBooksSection = document.getElementById('userBooksSection');
+    const selectedUserName = document.getElementById('selectedUserName');
+    const userBooksList = document.getElementById('userBooksList');
+    const userModal = document.getElementById('userModal');
+    const modalUsername = document.getElementById('modalUsername');
+    const modalPassword = document.getElementById('modalPassword');
+    const modalIsAdmin = document.getElementById('modalIsAdmin');
+    const modalSubmit = document.getElementById('modalSubmit');
+    const modalCancel = document.getElementById('modalCancel');
+
+    let currentUserId = null;
+    let editingUserId = null;
+    let selectedName = '';
+
+    async function checkAdmin() {
+      try {
+        const me = await api('/api/auth/me');
+        if (!me || !me.isAdmin) {
+          forbidden.classList.remove('hidden');
+          adminPanel.classList.add('hidden');
+          return false;
+        }
+        return true;
+      } catch (_) {
+        forbidden.classList.remove('hidden');
+        adminPanel.classList.add('hidden');
+        return false;
+      }
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    async function loadUsers() {
+      const users = await api('/api/admin/users');
+      userList.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.is_admin ? '是' : '否'}</td>
+          <td>${formatDate(u.created_at)}</td>
+          <td>
+            <button type="button" class="btn-shelf btn-sm" data-action="books" data-id="${u.id}" data-name="${u.username}">书籍</button>
+            <button type="button" class="btn-shelf btn-sm" data-action="edit" data-id="${u.id}">编辑</button>
+            <button type="button" class="btn-shelf btn-sm" data-action="delete" data-id="${u.id}">删除</button>
+          </td>
+        </tr>
+      `).join('');
+
+      userList.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const action = btn.dataset.action;
+          const id = parseInt(btn.dataset.id, 10);
+          const name = btn.dataset.name || '';
+          if (action === 'books') {
+            currentUserId = id;
+            selectedName = name;
+            selectedUserName.textContent = name;
+            userBooksSection.classList.remove('hidden');
+            await loadUserBooks();
+          } else if (action === 'edit') {
+            editingUserId = id;
+            document.getElementById('userModalTitle').textContent = '编辑用户';
+            const users = await api('/api/admin/users');
+            const u = users.find(x => x.id === id);
+            modalUsername.value = u?.username || '';
+            modalUsername.disabled = true;
+            modalPassword.value = '';
+            modalPassword.placeholder = '留空则不修改密码';
+            modalIsAdmin.checked = !!u?.is_admin;
+            userModal.classList.remove('hidden');
+          } else if (action === 'delete') {
+            if (!confirm('确定删除用户「' + name + '」？其书籍将一并删除。')) return;
+            await api('/api/admin/users/' + id, { method: 'DELETE' });
+            loadUsers();
+            if (currentUserId === id) userBooksSection.classList.add('hidden');
+          }
+        });
+      });
+    }
+
+    async function loadUserBooks() {
+      if (currentUserId == null) return;
+      const books = await api('/api/admin/users/' + currentUserId + '/books');
+      userBooksList.innerHTML = books.map(b => `
+        <tr>
+          <td>${b.id}</td>
+          <td>${b.title || b.file_name}</td>
+          <td>${(b.size / 1024).toFixed(1)} KB</td>
+          <td>${formatDate(b.created_at)}</td>
+          <td><button type="button" class="btn-shelf btn-sm" data-book-id="${b.id}">删除</button></td>
+        </tr>
+      `).join('');
+      userBooksList.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', async () => {
+          if (!confirm('确定删除此书？')) return;
+          await api('/api/admin/books/' + b.dataset.bookId, { method: 'DELETE' });
+          loadUserBooks();
+        });
+      });
+    }
+
+    document.getElementById('btnAddUser').addEventListener('click', () => {
+      editingUserId = null;
+      document.getElementById('userModalTitle').textContent = '添加用户';
+      modalUsername.value = '';
+      modalUsername.disabled = false;
+      modalPassword.value = '';
+      modalPassword.placeholder = '密码';
+      modalIsAdmin.checked = false;
+      userModal.classList.remove('hidden');
+    });
+
+    modalCancel.addEventListener('click', () => userModal.classList.add('hidden'));
+    modalSubmit.addEventListener('click', async () => {
+      const username = modalUsername.value.trim();
+      const password = modalPassword.value;
+      if (!username) { alert('请输入用户名'); return; }
+      if (!editingUserId && !password) { alert('请输入密码'); return; }
+      try {
+        if (editingUserId) {
+          await api('/api/admin/users/' + editingUserId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password: password || undefined, is_admin: modalIsAdmin.checked })
+          });
+        } else {
+          await api('/api/admin/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, is_admin: modalIsAdmin.checked })
+          });
+        }
+        userModal.classList.add('hidden');
+        loadUsers();
+      } catch (e) {
+        alert(e.message || '操作失败');
+      }
+    });
+
+    (async function init() {
+      if (!await checkAdmin()) return;
+      await loadUsers();
+    })();
+  </script>
+</body>
+</html>
