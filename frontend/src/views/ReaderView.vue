@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, onActivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from 'ant-design-vue'
 import { api } from '@/api'
@@ -115,7 +115,9 @@ const currentPageParas = computed(() => {
 const bookId = computed(() => Number(route.params.id))
 
 function goBack() {
-  router.replace('/bookshelf')
+  flushProgress().then(() => {
+    router.replace('/bookshelf')
+  })
 }
 
 function toggleMode() {
@@ -168,9 +170,15 @@ function onScroll() {
   activeChapterIndex.value = chapters.value[0]?.index ?? null
   clearTimeout(scrollTimer)
   scrollTimer = setTimeout(() => {
+    const total = pageList.value.length
+    const pageIndex = total <= 1 ? 0 : Math.min(
+      Math.floor((scrollPercent.value / 100) * total),
+      total - 1
+    )
     api.put(`/api/books/${bookId.value}/progress`, {
       scroll_top: el.scrollTop,
       percent: scrollPercent.value,
+      page_index: pageIndex,
     }).catch(() => {})
   }, 500)
 }
@@ -185,18 +193,93 @@ function savePageProgress() {
   }).catch(() => {})
 }
 
-onMounted(async () => {
-  document.body.setAttribute('data-theme', appStore.theme)
+function flushProgress() {
+  clearTimeout(scrollTimer)
+  if (!book.value || !Number(route.params.id)) return Promise.resolve()
+  const id = bookId.value
+  if (appStore.paginationMode) {
+    const total = pageList.value.length
+    const percent = total <= 1 ? 100 : Math.round(((currentPageIndex.value + 1) / total) * 100)
+    return api.put(`/api/books/${id}/progress`, {
+      scroll_top: 0,
+      percent,
+      page_index: currentPageIndex.value,
+    }).catch(() => {})
+  }
+  const el = contentRef.value
+  if (!el) return Promise.resolve()
+  const total = pageList.value.length
+  const pageIndex = total <= 1 ? 0 : Math.min(
+    Math.floor((scrollPercent.value / 100) * total),
+    total - 1
+  )
+  return api.put(`/api/books/${id}/progress`, {
+    scroll_top: el.scrollTop,
+    percent: scrollPercent.value,
+    page_index: pageIndex,
+  }).catch(() => {})
+}
+
+async function loadBook() {
+  const id = bookId.value
+  if (!id || !Number(id)) return
+  contentRef.value?.removeEventListener('scroll', onScroll)
+  clearTimeout(scrollTimer)
+  book.value = null
+  scrollPercent.value = 0
+  currentPageIndex.value = 0
+  activeChapterIndex.value = null
+
   try {
-    book.value = await api.get<BookDetail>(`/api/books/${bookId.value}`)
-    const content = book.value.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-    book.value.content = content
-    if (book.value.progress?.page_index != null) {
-      currentPageIndex.value = Math.min(book.value.progress.page_index, buildPageList(content).length - 1)
-    }
-    if (!appStore.paginationMode && book.value.progress?.scroll_top != null) {
+    const data = await api.get<BookDetail>(`/api/books/${id}`)
+    const content = data.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    data.content = content
+    book.value = data
+    const progress = data.progress
+    const pages = buildPageList(content)
+
+    if (appStore.paginationMode) {
+      if (progress?.page_index != null && progress.page_index > 0) {
+        currentPageIndex.value = Math.min(progress.page_index, pages.length - 1)
+      } else if (progress?.percent != null && progress.percent > 0 && pages.length > 0) {
+        currentPageIndex.value = Math.min(
+          Math.floor((progress.percent / 100) * pages.length),
+          pages.length - 1
+        )
+      }
+    } else {
+      const progressScrollTop = progress?.scroll_top != null && progress.scroll_top > 0
+        ? progress.scroll_top
+        : null
+      const progressPercent = progress?.percent != null && progress.percent > 0
+        ? progress.percent
+        : null
+
       await nextTick()
-      if (contentRef.value) contentRef.value.scrollTop = book.value.progress.scroll_top
+      const el = contentRef.value
+      if (el && (progressScrollTop != null || progressPercent != null)) {
+        const restoreScroll = () => {
+          const target = contentRef.value
+          if (!target) return
+          if (progressScrollTop != null) {
+            target.scrollTop = progressScrollTop
+          } else if (progressPercent != null) {
+            const maxScroll = target.scrollHeight - target.clientHeight
+            if (maxScroll > 0) {
+              target.scrollTop = (progressPercent / 100) * maxScroll
+            }
+          }
+          if (progressPercent != null) scrollPercent.value = progressPercent
+          else if (target.scrollHeight > target.clientHeight) {
+            scrollPercent.value = Math.round((target.scrollTop / (target.scrollHeight - target.clientHeight)) * 100)
+          }
+        }
+        restoreScroll()
+        requestAnimationFrame(() => {
+          requestAnimationFrame(restoreScroll)
+        })
+        setTimeout(restoreScroll, 150)
+      }
     }
     contentRef.value?.addEventListener('scroll', onScroll)
     onScroll()
@@ -204,10 +287,28 @@ onMounted(async () => {
     book.value = null
     router.replace('/bookshelf')
   }
+}
+
+onMounted(() => {
+  document.body.setAttribute('data-theme', appStore.theme)
+  loadBook()
+})
+
+watch(bookId, (newId, oldId) => {
+  if (oldId !== undefined && String(newId) !== String(oldId)) {
+    loadBook()
+  }
+})
+
+onActivated(() => {
+  if (book.value?.id !== bookId.value) {
+    loadBook()
+  }
 })
 
 onUnmounted(() => {
   contentRef.value?.removeEventListener('scroll', onScroll)
+  flushProgress()
 })
 
 </script>

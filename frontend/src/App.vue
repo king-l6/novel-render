@@ -1,6 +1,10 @@
 <template>
   <div class="min-h-screen bg-gray-50">
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <keep-alive>
+        <component :is="Component" />
+      </keep-alive>
+    </RouterView>
   </div>
 </template>
 

@@ -4,7 +4,7 @@
       <h1 class="text-lg font-semibold text-gray-800">📖 书架</h1>
       <div class="flex items-center gap-3">
         <span class="text-sm text-gray-500">{{ userStore.userName }}</span>
-        <a v-if="userStore.isAdmin" href="/admin.html" class="text-sm text-blue-600 hover:underline">管理</a>
+        <RouterLink v-if="userStore.isAdmin" to="/admin" class="text-sm text-blue-600 hover:underline">管理</RouterLink>
         <Button size="small" @click="handleLogout">退出</Button>
       </div>
     </header>
@@ -61,8 +61,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onActivated } from 'vue'
+import { useRouter, RouterLink } from 'vue-router'
 import { Card, Button, Spin, Empty, message } from 'ant-design-vue'
 import { useUserStore } from '@/store/user'
 import { api } from '@/api'
@@ -147,6 +147,10 @@ async function handleLogout() {
 }
 
 onMounted(() => {
+  loadBooks()
+})
+
+onActivated(() => {
   loadBooks()
 })
 </script>

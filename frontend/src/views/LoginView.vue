@@ -1,7 +1,15 @@
+<!--
+ * @Author: v_liuhaoran v_liuhaoran@bilibili.com
+ * @Date: 2026-02-24 16:02:26
+ * @LastEditors: v_liuhaoran v_liuhaoran@bilibili.com
+ * @LastEditTime: 2026-02-25 15:09:33
+ * @FilePath: /novel-reader/frontend/src/views/LoginView.vue
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+-->
 <template>
   <div class="min-h-screen flex items-center justify-center p-4 bg-gray-50">
     <div class="w-full max-w-sm">
-      <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">📖 TXT 阅读器</h1>
+      <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">📖 赵舒仰❤️专属小说阅读器</h1>
       <p class="text-center text-gray-500 mb-6">请先登录</p>
       <Form
         :model="formState"

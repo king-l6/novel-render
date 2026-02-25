@@ -37,10 +37,9 @@ pnpm start        # 启动后端，托管 frontend/dist
 
 ## 部署到线上（手机访问）
 
-把项目部署到**有公网 IP 或域名的服务器**，即可在手机浏览器打开网址看书。
-
-- **详细步骤**：见 [docs/部署.md](docs/部署.md)（云服务器 + pm2、可选 nginx/HTTPS、以及 Railway/Render 等 PaaS）。
-- **简要**：在服务器上 `pnpm install && pnpm run build`，然后 `PORT=3000 SESSION_SECRET="随机密钥" node server/index.js`（建议用 pm2 保活）；防火墙放行 3000 端口，手机访问 `http://你的公网IP:3000`。上线后请修改默认管理员密码。
+**云托管（电脑可关机）**：见 [docs/部署.md](docs/部署.md) — **Railway** 或 **Render（选 Docker 构建）**，连 GitHub、设 `SESSION_SECRET` 即可。  
+**本机**：自家电脑 `pnpm start` + `cloudflared tunnel --url http://localhost:3000`，用出现的 `https://xxx.trycloudflare.com` 在手机打开。  
+**学 Docker**：同文档里有「用 Docker 部署本项目（学习篇）」——Dockerfile 说明、本地 `docker build` / `docker run`、数据卷与常用命令。
 
 ## 数据存在哪
 
@@ -69,4 +68,3 @@ pnpm start        # 启动后端，托管 frontend/dist
 
 - 前端：Vue 3 + TypeScript + Vite + Tailwind CSS + Ant Design Vue + Pinia + Vue Router
 - 后端：Node.js + Express + sql.js，Session 登录，数据存 SQLite
-# novel-render

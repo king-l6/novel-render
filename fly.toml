@@ -1,0 +1,16 @@
+# Fly.io 配置
+# 重要：把下面 app 改成全球唯一的名字，如 novel-reader-你的英文名 或 novel-reader-abc123
+# 否则会报 "Failed to create app"（名字已被别人占用）
+app = "novel-reader"
+
+[build]
+
+[env]
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0

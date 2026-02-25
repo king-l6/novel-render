@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'Login', component: () => import('@/views/LoginView.vue'), meta: { public: true } },
+    { path: '/admin', name: 'Admin', component: () => import('@/views/AdminView.vue'), meta: { admin: true } },
     { path: '/bookshelf', name: 'Bookshelf', component: () => import('@/views/BookshelfView.vue') },
     { path: '/reader/:id', name: 'Reader', component: () => import('@/views/ReaderView.vue') },
     { path: '/', redirect: '/bookshelf' },
@@ -23,6 +24,10 @@ router.beforeEach(async (to, _from, next) => {
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
     }
+  }
+  if (to.meta.admin && !userStore.isAdmin) {
+    next({ path: '/bookshelf' })
+    return
   }
   next()
 })

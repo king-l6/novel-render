@@ -274,6 +274,7 @@ if (useVue) {
   app.get('/', sendVueIndex);
   app.get('/login', sendVueIndex);
   app.get('/bookshelf', sendVueIndex);
+  app.get('/admin', sendVueIndex);
   app.get('/reader/:id', sendVueIndex);
   app.use(express.static(frontendDist));
 } else {
@@ -285,6 +286,7 @@ if (useVue) {
   app.get('/', needBuild);
   app.get('/login', needBuild);
   app.get('/bookshelf', needBuild);
+  app.get('/admin', needBuild);
   app.get('/reader/:id', needBuild);
 }
 
